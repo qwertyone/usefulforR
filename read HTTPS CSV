@@ -1,0 +1,3 @@
+library(RCurl)
+data <- getURL("https://dl.dropbox.com/u/7710864/data/csv_hid/ss06hid.csv", ssl.verifypeer=0L, followlocation=1L)
+dat<-read.csv(text=data)
