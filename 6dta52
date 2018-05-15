@@ -1,0 +1,139 @@
+#Create for first tweet here
+#load rtweet
+if (!"rtweet" %in% installed.packages()) {install.packages("rtweet")}
+
+library(rtweet)
+
+#twitter setup
+
+
+twitter_token <- create_token(app=appname, consumer_key=key, consumer_secret=secret)
+
+#save twitter token
+home_directory <- path.expand("~/")
+file_name <- file.path(home_directory, "twitter_token.rds")
+saveRDS(twitter_token, file = file_name)
+cat(paste0("TWITTER_PAT=", file_name), file = file.path(home_directory, ".Renviron"), append=TRUE)
+
+
+library(dplyr)
+library(tidytext)
+library(stringr)
+
+
+tweets <- search_tweets(q="current weather in Karlsruhe", n=100, lang="en", include_rts=FALSE)
+tweet_current <- tweets$text[1]
+temp<-"°C"
+humd<-"%"
+
+loc_temp<-str_locate(tweet_current,temp) 
+loc_hum<-str_locate(tweet_current,humd)
+ 
+#need to find more valid readings
+temprature_drybulb <- str_sub(tweet_current, start=(loc_temp[1]-3),end=(loc_temp[2]-2))
+#need to find more valid readings
+humidity_relative <- str_sub(tweet_current, start=(loc_hum[1]-3),end=(loc_hum[2]-1))
+
+
+#clean results by removing all but numerals and set proper data type
+regexp <- "[[:digit:]]+"
+humidity_relative <- as.numeric(str_extract(humidity_relative, regexp))
+temprature_drybulb <- as.numeric(str_extract(temprature_drybulb, regexp))
+#convert from C to F
+temprature_drybulb <- ((temprature_drybulb * 1.8) + 32)
+
+#calculate heat index from http://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
+#Rothfusz regression and adjustments necessary in specific conditions
+
+index_heat <- 42.379 + 2.04901523*temprature_drybulb + 10.14333127*humidity_relative - .22475541*temprature_drybulb*humidity_relative - .00683783*temprature_drybulb*temprature_drybulb - .05481717*humidity_relative*humidity_relative + .00122874*temprature_drybulb*temprature_drybulb*humidity_relative + .00085282*temprature_drybulb*humidity_relative*humidity_relative - .00000199*temprature_drybulb*temprature_drybulb*humidity_relative*humidity_relative
+
+ADJUSTMENT <- 0
+
+if ((humidity_relative < 13) & (temprature_drybulb > 80) & (temprature_drybulb < 112)){
+	return(ADJUSTMENT <- ((13-humidity_relative)/4) * sqrt((17 - abs(temprature_drybulb - 95))/17))	
+	}
+
+if ((humidity_relative > 85)& (temprature_drybulb > 80) & (temprature_drybulb < 87)){
+	return(ADJUSTMENT <- (((humidity_relative-85)/10) * ((87-temprature_drybulb)/5)))
+	}
+
+index_heat <- index_heat - ADJUSTMENT
+
+result <- mean(HI + temprature_drybulb)
+
+ifelse (result < 80, current_condition <- "Safe",
+	ifelse(80 > result | result <= 90, current_condition <- "Yellow",
+	ifelse(90 > result | result <= 103, current_condition <- "L_Orange",
+	ifelse(103 > result | result <= 124, current_condition <- "D_Orange",current_condition <- "Red"
+))))
+
+#random relevant facts Safe
+
+s1 <- "#OSHA will tell you that sweating does not work as well on humid days as it does on dry days. It is this muggy feeling. #Karlsruhe"
+s2 <- "When the weather is dry, please drink more water. Sweat evaporates more quickly than in #highhumidity. #Karlsruhe"
+s3 <- "#Work #schedules will need to change as #Climate warms to avoid the negative effects of increasing heat. #Karlsruhe"
+s4 <- "This twitter feed is both bot and real person. The #HeatStress bot provides clues on how heat will change work in the coming years. #Karlsruhe"
+s5 <- "People will acclimate to increased tempratures, up to a point. This can take up to 2 weeks. #Karlsruhe"
+s6 <- "Take it easy when the summer comes. This bot will help to keep you ready for the times when the heat is too much. #Karlsruhe"
+
+S = list(s1, s2, s3, s4, s5, s6)
+
+#Yellow status results
+y1 <- "#Sports in #Karlsuhe need a tweaking. The #HeatIndex has reached light orange levels, meaning staying hydrated is important. Make sure water is accessible."
+y2 <- "The #HeatIndex in #Karlsruhe is high. Take water breaks every 30 to 45 minutes."
+y3 <- "Ten minutes out of the sun is a good idea right now. #Karlsruhe"
+y4 <- "If it gets any hotter... Ice down towels-- it is getting hot in #Karlsruhe."
+y5 <- "It is beginning to be hot enough to rethink activities, maybe make them shorter or reschedule for the evening."
+y6 <- "Your helmets and safety equipment might be getting a little hotter than normal. #Karlsruhe"
+y7 <- "Though not serious now, watch for signs of heat-related illness. The #HeatIndex in #Karlsruhe is light orange."
+y8 <- "Be sure to start drinking #moreWater on days like this. #HeatIndex #Karlsruhe"
+y9 <- "At moments like this, stay inside or in the shade. It is hot in #Karlsruhe."
+y10 <- "Switch to less strenuous work or easier tasks. This #heat is a good reason to take it easy in #Karlsruhe."
+
+Y = list(y1, y2, y3, y4, y5, y6, y7, y8, y9, y10)
+
+#Light Orange Status results
+l1 <- "The #HeatIndex in #Karlsruhe has hit Light Orange. Uniforms might need altered to deal with the heat."
+l2 <- "I hope you have dry uniforms for #Sports. The #HeatIndex in #Karlsruhe has hit Light Orange."
+l3 <- "Outdoor activities need to be limited to 2 hours or less. The #HeatIndex in #Karlsruhe has hit Light Orange."
+l4 <- "The #HeatIndex in #Karlsruhe has hit Light Orange. Maybe activities need moved to morning or evening times. It's cooler."
+l5 <- "It is hot enough to remove inessential equipment. The #HeatIndex in #Karlsruhe has hit Light Orange."
+l6 <- "If you are paying attention, GREAT! The heat is high and so is the risk. Reading this alert and being aware is a first step. #Karlsruhe""
+l7 <- "Try to limit physical exertion. Use mechanical tools to reduce #HeatStress right now in #Karlsruhe.""
+l8 <- "It is hot enough to have a #HeatStress expert nearby. The risk for #HeatStroke is high in #Karlsruhe."
+l9 <- "It is a good time to balance work and rest, as well as maintaining work discipline. It is hot in #Karlsruhe."
+l10 <- "If you are working outdoors, reschedule work activities to the morning or evening, when it is much cooler. You will save work and money doing so in #Karlsruhe." 
+
+L = list(l1, l2, l3, l4, l5, l6, l7, l8, l9, l10)
+
+#Dark Orange results
+d1 <- "It is time to move indoors and into a cool area. The #HeatIndex in #Karlsruhe has hit Dark Orange. "
+d2 <- "You know bad ideas. Here's one -- work outside in #Karlsruhe right now."
+d3 <- "Due to the heat, consider earlier as well as later start times and split shifts for outdoor work in #Karlsruhe "
+d4 <- "#Safety caution: avoid strenuous work due to the high heat in #Karlsruhe."
+d5 <- ""
+d6 <- ""
+
+D = list(d1, d2, d3, d4)
+
+# https://www.osha.gov/SLTC/heatillness/heat_index/pdfs/all_in_one.pdf
+# strategies to deal with heat stress https://www.osha.gov/OshDoc/data_Hurricane_Facts/heat_stress.pdf
+# https://s3.amazonaws.com/sidearm.sites/bishopalemanyhs.sidearmsports.com/documents/2016/12/5/Hot_Weather_Guidelines_for_Athletic_Practice.pdf
+
+
+#random facts  high humidity
+h1 <- "You might be feeling hotter now. Humidity will do that."
+
+ifelse (current_condition == "Safe", status <- as.character(sample(S[])),
+	ifelse (current_condition == "Yellow", status <- as.character(sample(Y[])),
+	ifelse (current_condition == "L_Orange", status <- as.character(sample(L[])),
+	ifelse (current_condition == "D_Orange", status <- as.character(sample(D[])), status <- "error"
+))))
+
+#post momentary tweet guidance
+post_tweet(status=status[1])
+
+#facebook
+#require("Rfacebook")
+#fb_oauth <- fbOAuth(app_id="1813193632306097", app_secret="655f6652d7fee588d093913a9639e6b3",extended_permissions = TRUE)
+#updateStatus(text = status[1], token=fb_oauth)
